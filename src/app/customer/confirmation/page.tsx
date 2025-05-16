@@ -1,82 +1,140 @@
-// src/app/confirmation/page.tsx
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card, CardContent } from '@/components/ui/Card';
-import { Alert } from '@/components/ui/Alert';
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Order, getOrderById, subscribeToOrderUpdates } from "@/lib/utils/store";
 
 export default function ConfirmationPage() {
-  const [orderNumber, setOrderNumber] = useState('');
-  const [estimatedTime, setEstimatedTime] = useState('');
-  
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [order, setOrder] = useState<Order | null>(null);
+
   useEffect(() => {
-    // Generate a random order number
-    const randomOrderNum = Math.floor(10000 + Math.random() * 90000);
-    setOrderNumber(randomOrderNum.toString());
-    
-    // Set estimated time (15-25 minutes from now)
-    const minWait = 15;
-    const maxWait = 25;
-    const waitTime = Math.floor(minWait + Math.random() * (maxWait - minWait));
-    setEstimatedTime(`${waitTime} minutes`);
-  }, []);
-  
-  return (
-    <div className="max-w-2xl mx-auto py-16 px-4 text-center">
-      <div className="w-20 h-20 bg-green-100 rounded-full mx-auto flex items-center justify-center mb-6">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
+    const orderId = searchParams.get("orderId");
+    if (!orderId) {
+      router.push("/customer/menu");
+      return;
+    }
+
+    // Get initial order state
+    const orderData = getOrderById(parseInt(orderId));
+    if (orderData) {
+      setOrder(orderData);
+    }
+
+    // Subscribe to order updates
+    const unsubscribe = subscribeToOrderUpdates((updatedOrder) => {
+      if (updatedOrder.id === parseInt(orderId)) {
+        setOrder(updatedOrder);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [router, searchParams]);
+
+  const getStatusColor = (status: Order["status"]) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "preparing":
+        return "bg-blue-100 text-blue-800";
+      case "ready":
+        return "bg-green-100 text-green-800";
+      case "delivered":
+        return "bg-gray-100 text-gray-800";
+      case "cancelled":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  if (!order) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Order not found</h2>
+            <p className="text-gray-600 mb-4">
+              We couldn't find your order. Please try again or contact staff for assistance.
+            </p>
+            <Button variant="primary" onClick={() => router.push("/customer/menu")}>
+              Return to Menu
+            </Button>
+          </CardContent>
+        </Card>
       </div>
-      
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h1>
-      <p className="text-lg text-gray-600 mb-8">Your order has been received and is being prepared.</p>
-      
-      <Card className="mb-8">
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <Card>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm text-gray-500 mb-1">Order Number</h3>
-              <p className="text-2xl font-bold text-gray-900">#{orderNumber}</p>
-            </div>
-            
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm text-gray-500 mb-1">Estimated Time</h3>
-              <p className="text-2xl font-bold text-gray-900">{estimatedTime}</p>
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold mb-2">Thank you for your order!</h2>
+            <p className="text-gray-600">Order #{order.id}</p>
+            <div className="mt-4">
+              <Badge
+                className={`text-lg px-4 py-2 ${getStatusColor(order.status)}`}
+              >
+                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+              </Badge>
             </div>
           </div>
-          
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              Please keep an eye on the screen behind the counter for your order number.
-            </p>
+
+          <div className="border-t border-b py-6 mb-6">
+            <h3 className="font-semibold mb-4">Order Details</h3>
+            <div className="space-y-4">
+              {order.items.map((item, index) => (
+                <div key={index} className="flex justify-between items-start">
+                  <div>
+                    <p className="font-medium">{item.menuItem.name}</p>
+                    <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                  </div>
+                  <p className="font-medium">
+                    ${(item.menuItem.price * item.quantity).toFixed(2)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <div className="flex justify-between mb-2">
+              <span className="font-medium">Table</span>
+              <span>{order.tableId}</span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="font-medium">Total Amount</span>
+              <span className="font-bold">${order.totalAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Order Time</span>
+              <span>
+                {new Date(order.createdAt).toLocaleTimeString()}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/customer/track-order?orderId=${order.id}`)}
+            >
+              Track Order Status
+            </Button>
+            <Button variant="primary" onClick={() => router.push("/customer/menu")}>
+              Place Another Order
+            </Button>
           </div>
         </CardContent>
       </Card>
-      
-      <Alert variant="info" className="mb-8">
-        <p className="text-center">
-          Your receipt has been sent to the email associated with your account.
-        </p>
-      </Alert>
-      
-      <div className="flex flex-col sm:flex-row justify-center gap-4">
-        <Button 
-          variant="outline" 
-          size="lg"
-          onClick={() => window.location.href = '/menu'}
-        >
-          Back to Menu
-        </Button>
-        <Button 
-          variant="primary" 
-          size="lg"
-          onClick={() => window.location.href = '/track-order'}
-        >
-          Track My Order
-        </Button>
-      </div>
     </div>
   );
 }
