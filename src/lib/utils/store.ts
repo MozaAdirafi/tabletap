@@ -10,11 +10,10 @@ import {
 export interface MenuItem {
   id: string;
   name: string;
-  description: string;
   price: number;
+  description: string;
   available: boolean;
   tags: string[];
-  imageSrc?: string;
   categoryId: string;
 }
 
@@ -23,14 +22,29 @@ export interface MenuCategory {
   name: string;
   description?: string;
 }
+export interface CartItem {
+  id: number;
+  name: string;
+  price: number;
+  basePrice: number;
+  quantity: number;
+  selectedOptions?: string[];
+  selectedSize?: string;
+  specialInstructions?: string;
+}
+
+export interface OrderItem {
+  menuItem: MenuItem;
+  quantity: number;
+}
 
 export interface Order {
-  id: string;
+  id: number;
   tableId: string;
-  items: { menuItem: MenuItem; quantity: number }[];
+  items: OrderItem[]; // Changed from CartItem[] to OrderItem[]
   status: "pending" | "preparing" | "ready" | "delivered" | "cancelled";
-  totalAmount: number;
   createdAt: Date;
+  totalAmount: number;
 }
 
 // Event handling for real-time updates

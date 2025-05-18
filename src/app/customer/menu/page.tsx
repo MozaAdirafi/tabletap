@@ -12,6 +12,7 @@ import { validateQrCode } from "@/lib/firebase/firestore";
 import { MenuProvider, useMenu } from "@/components/providers/MenuProvider";
 import { getMenuCategoriesFromDB } from "@/lib/firebase/firestore";
 import { getRestaurantByID } from "@/lib/firebase/restaurant";
+import { MenuItem } from "@/lib/utils/store";
 
 interface CartItem {
   id: string;
@@ -30,6 +31,10 @@ interface MenuCategory {
   description?: string;
 }
 
+interface ExtendedMenuItem extends MenuItem {
+  imageSrc?: string;
+}
+
 function MenuContent() {
   const { items, loading, error } = useMenu();
   const [cart, setCart] = useState<{ items: CartItem[]; total: number }>({
@@ -39,7 +44,6 @@ function MenuContent() {
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>();
   const [restaurantName, setRestaurantName] = useState<string>("");
-  const router = useRouter();
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurant");
   const tableId = searchParams.get("table");
@@ -188,7 +192,7 @@ function MenuContent() {
           <h1 className="text-2xl font-bold mb-2">
             {restaurantName
               ? restaurantName
-              : `Restaurant ${restaurantId.substring(0, 6)}`}
+              : `Restaurant ${restaurantId?.substring(0, 6) || "Unknown"}`}
           </h1>
           <p className="text-gray-600">Table {tableId}</p>
         </div>{" "}
@@ -214,13 +218,14 @@ function MenuContent() {
             const cartItem = cart.items.find(
               (cartItem) => cartItem.id === item.id
             );
+            const menuItem = item as ExtendedMenuItem;
             return (
               <Card key={item.id} className="h-full">
                 <div className="flex h-40">
                   <div className="w-1/3 bg-gray-200 relative">
-                    {item.imageSrc ? (
+                    {menuItem.imageSrc ? (
                       <Image
-                        src={item.imageSrc}
+                        src={menuItem.imageSrc}
                         alt={item.name}
                         width={160}
                         height={160}

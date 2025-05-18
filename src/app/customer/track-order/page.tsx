@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Order, getOrderById } from "@/lib/utils/store";
+import { Order  } from "@/lib/utils/store";
 import { OrderStatusAlert } from "@/components/ui/OrderStatusAlert";
 import { subscribeToOrders } from "@/lib/firebase/firestore";
 

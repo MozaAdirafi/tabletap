@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { MenuItemForm } from "@/components/admin/MenuItemForm";
 import { useAuth } from "@/lib/context/AuthContext";
+import Image from "next/image";
 import {
   getMenuItemsFromDB,
   getMenuCategoriesFromDB,
@@ -132,7 +133,8 @@ export default function MenuManagementPage() {
         categoryId: activeCategory,
         tags: data.tags,
         available: data.available,
-        imageSrc: PLACEHOLDER_IMAGE_URL,
+        // Remove imageSrc if not supported by addMenuItemToDB type
+        // imageSrc: PLACEHOLDER_IMAGE_URL,
       });
 
       console.log("Added item with ID:", addedItem.id);
@@ -361,10 +363,16 @@ export default function MenuManagementPage() {
                 >
                   {/* Image */}
                   <div className="h-40 bg-gray-200 relative">
-                    <img
+                    <Image
                       src={item.imageSrc || PLACEHOLDER_IMAGE_URL}
                       alt={item.name}
+                      width={400}
+                      height={160}
                       className="w-full h-full object-cover"
+                      unoptimized={
+                        item.imageSrc?.startsWith("data:") ||
+                        PLACEHOLDER_IMAGE_URL.startsWith("data:")
+                      }
                     />
                     <div className="absolute top-2 right-2">
                       <Badge

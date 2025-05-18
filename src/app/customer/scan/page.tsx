@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QRScanner } from "@/components/customer/QRScanner";
-import { Button } from "@/components/ui/Button";
+
 import { validateQrCode } from "@/lib/firebase/firestore";
 
 export default function ScanPage() {
@@ -62,9 +62,6 @@ export default function ScanPage() {
     }
   };
 
-  const handleSkipScanning = () => {
-    router.push("/customer/menu");
-  };
 
   return (
     <div className="max-w-md mx-auto p-4">

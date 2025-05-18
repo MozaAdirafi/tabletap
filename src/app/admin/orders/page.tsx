@@ -39,7 +39,7 @@ export default function OrdersPage() {
     };
   }, [user]);
   const handleStatusChange = async (
-    orderId: number,
+    orderId: string | number,
     newStatus: Order["status"]
   ) => {
     try {
@@ -50,7 +50,7 @@ export default function OrdersPage() {
       if (!restaurantId) {
         throw new Error("Restaurant ID is not set");
       }
-      await updateOrderStatus(restaurantId, orderId, newStatus);
+      await updateOrderStatus(restaurantId, Number(orderId), newStatus);
     } catch (error) {
       console.error("Error updating order status:", error);
       alert(
@@ -60,7 +60,7 @@ export default function OrdersPage() {
       );
     }
   };
-  const handleDeleteOrder = async (orderId: number) => {
+  const handleDeleteOrder = async (orderId: string | number) => {
     if (window.confirm("Are you sure you want to delete this order?")) {
       try {
         if (!user) {
@@ -73,10 +73,10 @@ export default function OrdersPage() {
 
         console.log(
           `Attempting to delete order ${orderId} with status ${
-            orders.find((o) => o.id === orderId)?.status
+            orders.find((o) => o.id === Number(orderId))?.status
           }`
         );
-        await deleteOrder(restaurantId, orderId);
+        await deleteOrder(restaurantId, Number(orderId));
         console.log("Order deleted successfully");
       } catch (error) {
         console.error(`Error deleting order ${orderId}:`, error);

@@ -1,11 +1,5 @@
 // src/components/checkout/OrderSummary.tsx
-import { Button } from "@/components/ui/Button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "@/components/ui/Card";
+
 
 type Option = {
   id: string;

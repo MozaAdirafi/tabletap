@@ -23,24 +23,24 @@ interface Table {
   createdAt: Timestamp;
 }
 
-interface Restaurant {
-  id: string;
-  name: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  description?: string;
-  openingHours?: {
-    monday: string;
-    tuesday: string;
-    wednesday: string;
-    thursday: string;
-    friday: string;
-    saturday: string;
-    sunday: string;
-  };
-  [key: string]: any; // Allow for additional fields
-}
+// interface Restaurant {
+//   id: string;
+//   name: string;
+//   address?: string;
+//   phone?: string;
+//   email?: string;
+//   description?: string;
+//   openingHours?: {
+//     monday: string;
+//     tuesday: string;
+//     wednesday: string;
+//     thursday: string;
+//     friday: string;
+//     saturday: string;
+//     sunday: string;
+//   };
+//   [key: string]: any; 
+// }
 
 // Restaurant specific collection references
 const getRestaurantRef = (restaurantId: string) => {
@@ -267,17 +267,21 @@ export const subscribeToMenuItems = (
   const menuItemsRef = getMenuItemsRef(restaurantId);
 
   return onSnapshot(menuItemsRef, (snapshot) => {
-    const items = snapshot.docs.map(
-      (doc) =>
-        ({
-          id: parseInt(doc.id),
-          ...doc.data(),
-          price:
-            typeof doc.data().price === "string"
-              ? parseFloat(doc.data().price)
-              : doc.data().price,
-        } as MenuItem)
-    );
+    const items = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      // Convert to string to match MenuItem type definition
+      return {
+        id: doc.id, // Keep as string to match type definition
+        name: data.name || "",
+        price: typeof data.price === "string" ? parseFloat(data.price) : data.price || 0,
+        description: data.description || "",
+        available: data.available ?? true,
+        tags: data.tags || [],
+        categoryId: data.categoryId || "",
+        // Include other fields from the doc data
+        ...data,
+      } as MenuItem;
+    });
     callback(items);
   });
 };

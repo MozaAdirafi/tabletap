@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Order, MenuItem, addOrder } from "@/lib/utils/store";
+import { MenuItem, addOrder } from "@/lib/utils/store";
 
 interface CartItem {
   id: number;
@@ -28,7 +27,6 @@ export default function CheckoutPage() {
   const [tipPercentage, setTipPercentage] = useState(15);
   const [specialRequests, setSpecialRequests] = useState("");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
   const restaurantId = searchParams.get("restaurant");
   const tableId = searchParams.get("table");
 
@@ -83,7 +81,7 @@ export default function CheckoutPage() {
       // Create order object
       const orderItems = cartItems.map((item) => ({
         menuItem: {
-          id: Number(item.id), // Ensure ID is a number
+          id: String(Number(item.id)), // Convert to string to match MenuItem type
           name: item.name,
           price: item.price,
           description: item.description || "",

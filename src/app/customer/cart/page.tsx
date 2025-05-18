@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -10,6 +11,9 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { useMenu } from "@/components/providers/MenuProvider";
 import { MenuItem } from "@/lib/utils/store";
 
+interface ExtendedMenuItem extends MenuItem {
+  imageSrc?: string;
+}
 interface CartItem {
   id: number;
   name: string;
@@ -118,22 +122,26 @@ export default function CartPage() {
         <div className="space-y-6">
           {cartItems.map((cartItem) => {
             // Get the full menu item details
-            const menuItem = menuItems.find((item) => item.id === cartItem.id);
+            const menuItem = menuItems.find(
+              (item) => String(item.id) === String(cartItem.id)
+            );
             if (!menuItem) return null;
 
             return (
               <Card key={cartItem.id} className="p-4">
                 <div className="flex items-center gap-4">
+                  {" "}
                   <div className="w-20 h-20 bg-gray-200 rounded-lg flex-shrink-0">
-                    {menuItem.imageSrc && (
-                      <img
-                        src={menuItem.imageSrc}
+                    {(menuItem as ExtendedMenuItem).imageSrc && (
+                      <Image
+                        src={(menuItem as ExtendedMenuItem).imageSrc!}
                         alt={menuItem.name}
+                        width={80}
+                        height={80}
                         className="w-full h-full object-cover rounded-lg"
                       />
                     )}
                   </div>
-
                   <div className="flex-1">
                     <h3 className="font-medium text-gray-900">
                       {cartItem.name}
@@ -170,7 +178,6 @@ export default function CartPage() {
                       </p>
                     )}
                   </div>
-
                   <div className="flex items-center gap-4">
                     {" "}
                     <div className="flex items-center border rounded-md">

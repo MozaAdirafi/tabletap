@@ -22,9 +22,14 @@ export default function ResetPasswordPage() {
     try {
       await resetPassword(email);
       setIsSubmitted(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Password reset error:", err);
-      if (err.code === "auth/user-not-found") {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        (err as { code?: string }).code === "auth/user-not-found"
+      ) {
         setError(
           "No account found with this email. Please check your email address or create a new account."
         );

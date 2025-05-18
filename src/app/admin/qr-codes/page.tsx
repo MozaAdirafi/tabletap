@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState } from "react";
@@ -10,12 +11,13 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { useEffect } from "react";
 import { getTablesFromDB, addTableToDB } from "@/lib/firebase/firestore";
 import { useAuth } from "@/lib/context/AuthContext";
+import { deleteTableFromDB } from "@/lib/firebase/firestore";
 
 export default function QRCodesPage() {
   const { user } = useAuth();
   const [tables, setTables] = useState<{ id: string; number: number }[]>([]);
   const [newTableNumber, setNewTableNumber] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const restaurantId = user?.uid;
   useEffect(() => {

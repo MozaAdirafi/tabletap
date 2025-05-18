@@ -1,6 +1,5 @@
 // src/components/ui/Card.tsx
 import { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
 import { clsx } from 'clsx';
 
 interface CardProps {

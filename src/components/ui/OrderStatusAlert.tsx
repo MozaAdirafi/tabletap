@@ -6,7 +6,12 @@ interface OrderStatusAlertProps {
 }
 
 export function OrderStatusAlert({ status }: OrderStatusAlertProps) {
-  const getStatusMessage = (status: Order["status"]) => {
+  // Add a specific return type to inform TypeScript about the variant values
+  const getStatusMessage = (status: Order["status"]): {
+    title: string;
+    message: string;
+    variant: "info" | "success" | "error" | "warning";
+  } => {
     switch (status) {
       case "pending":
         return {
@@ -52,10 +57,9 @@ export function OrderStatusAlert({ status }: OrderStatusAlertProps) {
   const { title, message, variant } = getStatusMessage(status);
 
   return (
-    <Alert
-      title={title}
-      message={message}
-      variant={variant as "info" | "success" | "error"}
-    />
+    <Alert variant={variant}>
+      <div className="font-medium">{title}</div>
+      <div className="text-sm">{message}</div>
+    </Alert>
   );
 }

@@ -54,10 +54,12 @@ export default function Home() {
             </div>
             <div className="mt-12 lg:mt-0 lg:w-1/2">
               <div className="relative rounded-lg overflow-hidden shadow-xl">
-                <img
-                  src="https://images.unsplash.com/photo-1552566626-52f8b828add9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80"
-                  alt="Restaurant tablet ordering system"
-                  className="w-full h-auto"
+                <Image
+                  src="/images/landing-food.jpg"
+                  alt="Delicious restaurant food"
+                  width={500}
+                  height={300}
+                  className="rounded-lg shadow-lg"
                 />
               </div>
             </div>
