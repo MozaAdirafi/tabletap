@@ -13,7 +13,6 @@ import {
   serverTimestamp,
   onSnapshot,
   Timestamp,
-  DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { MenuItem, MenuCategory, Order } from "@/lib/utils/store";
