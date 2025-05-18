@@ -53,9 +53,9 @@ export default function Home() {
               </div>
             </div>
             <div className="mt-12 lg:mt-0 lg:w-1/2">
-              <div className="relative rounded-lg overflow-hidden shadow-xl">
+              <div className="relative rounded-lg o">
                 <Image
-                  src="/images/landing-food.jpg"
+                  src="/qrmenu.jpg"
                   alt="Delicious restaurant food"
                   width={500}
                   height={300}
