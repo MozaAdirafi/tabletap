@@ -1,15 +1,15 @@
 // src/app/auth/login/page.tsx
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import Link from "next/link";
-import { useAuth } from "@/lib/context/AuthContext";
-import { db } from "@/lib/firebase/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import Link from 'next/link';
+import { useAuth } from '@/lib/context/AuthContext';
+import { db } from '@/lib/firebase/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface FirebaseError {
   code?: string;
@@ -17,77 +17,65 @@ interface FirebaseError {
 }
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
   const { login, loginWithGoogle } = useAuth();
-
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
     setLoading(true);
 
     try {
       await login(email, password);
-      router.push("/admin/dashboard");
+      router.push('/admin/dashboard');
     } catch (err: unknown) {
-      console.error("Login error:", err);
+      console.error('Login error:', err);
       const firebaseError = err as FirebaseError;
-
-      if (
-        firebaseError.code === "auth/wrong-password" ||
-        firebaseError.code === "auth/user-not-found"
-      ) {
-        setError("Invalid email or password. Please try again.");
-      } else if (firebaseError.code === "auth/too-many-requests") {
-        setError(
-          "Too many failed login attempts. Please try again later or reset your password."
-        );
+      
+      if (firebaseError.code === 'auth/wrong-password' || firebaseError.code === 'auth/user-not-found') {
+        setError('Invalid email or password. Please try again.');
+      } else if (firebaseError.code === 'auth/too-many-requests') {
+        setError('Too many failed login attempts. Please try again later or reset your password.');
       } else {
-        setError("Failed to login. Please check your credentials.");
+        setError('Failed to login. Please check your credentials.');
       }
     } finally {
       setLoading(false);
     }
   };
+  
   const handleGoogleSignIn = async () => {
-    setError("");
+    setError('');
     setIsGoogleLoading(true);
 
     try {
       const result = await loginWithGoogle();
-
+      
       // Check if restaurant profile exists in Firestore
-      const restaurantRef = doc(db, "restaurants", result.user.uid);
+      const restaurantRef = doc(db, 'restaurants', result.user.uid);
       const restaurantDoc = await getDoc(restaurantRef);
-
+      
       if (!restaurantDoc.exists()) {
-        // If no restaurant profile, redirect to settings page to complete profile
-        // Create a minimal restaurant profile first
-        await setDoc(restaurantRef, {
-          email: result.user.email || "",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-
-        // Redirect to the settings page to complete the profile
-        router.push("/admin/settings");
+        // If no restaurant profile, redirect to register page to complete profile
+        router.push('/auth/register');
         return;
       }
-
+      
       // Restaurant profile exists, redirect to dashboard
-      router.push("/admin/dashboard");
+      router.push('/admin/dashboard');
     } catch (err: unknown) {
-      console.error("Google login error:", err);
+      console.error('Google login error:', err);
       const firebaseError = err as FirebaseError;
-
-      if (firebaseError.code === "auth/popup-closed-by-user") {
-        setError("Sign-in popup was closed. Please try again.");
+      
+      if (firebaseError.code === 'auth/popup-closed-by-user') {
+        setError('Sign-in popup was closed. Please try again.');
       } else {
-        setError("Failed to sign in with Google. Please try again.");
+        setError('Failed to sign in with Google. Please try again.');
       }
     } finally {
       setIsGoogleLoading(false);
@@ -98,9 +86,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-center text-2xl font-bold">
-            Restaurant Admin Login
-          </CardTitle>
+          <CardTitle className="text-center text-2xl font-bold">Restaurant Admin Login</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -109,12 +95,9 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-
+            
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
               </label>
               <Input
@@ -129,10 +112,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
               <Input
@@ -144,19 +124,21 @@ export default function LoginPage() {
                 className="mt-1"
                 placeholder="••••••••"
               />
-            </div>
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+            </div>            
+            
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
             </Button>
-
+            
             <div className="relative flex items-center justify-center mt-4">
               <div className="absolute border-t border-gray-300 w-full"></div>
-              <div className="relative bg-white px-4 text-sm text-gray-500">
-                Or continue with
-              </div>
+              <div className="relative bg-white px-4 text-sm text-gray-500">Or continue with</div>
             </div>
-
+            
             <Button
               type="button"
               variant="outline"
@@ -167,11 +149,7 @@ export default function LoginPage() {
               {isGoogleLoading ? (
                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-gray-900"></div>
               ) : (
-                <svg
-                  className="mr-2 h-4 w-4"
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="mr-2 h-4 w-4" aria-hidden="true" viewBox="0 0 24 24">
                   <path
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                     fill="#4285F4"
@@ -190,28 +168,20 @@ export default function LoginPage() {
                   />
                 </svg>
               )}
-              {isGoogleLoading
-                ? "Signing in with Google..."
-                : "Sign in with Google"}
+              {isGoogleLoading ? 'Signing in with Google...' : 'Sign in with Google'}
             </Button>
-
+            
             <div className="mt-4 text-center text-sm">
               <p>
-                Don&apos;t have an account?{" "}
-                <Link
-                  href="/auth/register"
-                  className="text-blue-600 hover:text-blue-800 font-medium"
-                >
+                Don&apos;t have an account?{' '}
+                <Link href="/auth/register" className="text-blue-600 hover:text-blue-800 font-medium">
                   Register now
                 </Link>
               </p>
             </div>
-
+            
             <div className="mt-2 text-center text-sm">
-              <Link
-                href="/auth/reset-password"
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
+              <Link href="/auth/reset-password" className="text-blue-600 hover:text-blue-800 font-medium">
                 Forgot your password?
               </Link>
             </div>

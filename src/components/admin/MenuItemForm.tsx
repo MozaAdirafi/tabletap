@@ -1,33 +1,42 @@
 // src/components/admin/MenuItemForm.tsx
-import { useState } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
-import { Badge } from '@/components/ui/Badge';
+import { useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Badge } from "@/components/ui/Badge";
 
 interface MenuItemFormProps {
   initialData?: {
-    id?: string | number;
+    id?: string;
     name: string;
     description: string;
     price: string | number;
-    categoryId: string | number;
+    categoryId: string;
     tags: string[];
     available: boolean;
     image?: File | string;
   };
   categories: { value: string; label: string }[];
-  onSubmit: (data: any) => void;
+  onSubmit: (data: {
+    id?: string;
+    name: string;
+    description: string;
+    price: string | number;
+    categoryId: string;
+    tags: string[];
+    available: boolean;
+    image?: File | string;
+  }) => void;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
 export function MenuItemForm({
   initialData = {
-    name: '',
-    description: '',
-    price: '',
-    categoryId: '',
+    name: "",
+    description: "",
+    price: "",
+    categoryId: "",
     tags: [],
     available: true,
     image: undefined,
@@ -39,15 +48,16 @@ export function MenuItemForm({
 }: MenuItemFormProps) {
   const [formData, setFormData] = useState(initialData);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [newTag, setNewTag] = useState('');
-  const [previewImage, setPreviewImage] = useState<string | undefined>(
-    typeof initialData.image === 'string' ? initialData.image : undefined
-  );
-  
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const [newTag, setNewTag] = useState("");
+
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
     const { name, value, type } = e.target;
-    
-    if (type === 'checkbox') {
+
+    if (type === "checkbox") {
       setFormData({
         ...formData,
         [name]: (e.target as HTMLInputElement).checked,
@@ -58,86 +68,69 @@ export function MenuItemForm({
         [name]: value,
       });
     }
-    
+
     // Clear error when field is modified
     if (errors[name]) {
       setErrors({
         ...errors,
-        [name]: '',
+        [name]: "",
       });
     }
   };
-  
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Preview image
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPreviewImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-    
-    setFormData({
-      ...formData,
-      image: file,
-    });
-  };
-  
+
   const handleAddTag = () => {
     if (!newTag.trim()) return;
-    
+
     if (!formData.tags.includes(newTag.trim())) {
       setFormData({
         ...formData,
         tags: [...formData.tags, newTag.trim()],
       });
     }
-    
-    setNewTag('');
+
+    setNewTag("");
   };
-  
+
   const handleRemoveTag = (tagToRemove: string) => {
     setFormData({
       ...formData,
-      tags: formData.tags.filter(tag => tag !== tagToRemove),
+      tags: formData.tags.filter((tag) => tag !== tagToRemove),
     });
   };
-  
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
+      newErrors.name = "Name is required";
     }
-    
+
     if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
+      newErrors.description = "Description is required";
     }
-    
+
     if (!formData.price) {
-      newErrors.price = 'Price is required';
+      newErrors.price = "Price is required";
     } else if (isNaN(Number(formData.price)) || Number(formData.price) <= 0) {
-      newErrors.price = 'Price must be a positive number';
+      newErrors.price = "Price must be a positive number";
     }
-    
+
     if (!formData.categoryId) {
-      newErrors.categoryId = 'Category is required';
+      newErrors.categoryId = "Category is required";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (validateForm()) {
       onSubmit(formData);
     }
   };
-  
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -154,7 +147,7 @@ export function MenuItemForm({
             required
           />
         </div>
-        
+
         <div>
           <Input
             label="Price"
@@ -172,9 +165,12 @@ export function MenuItemForm({
           />
         </div>
       </div>
-      
+
       <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="description"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Description
         </label>
         <textarea
@@ -184,14 +180,18 @@ export function MenuItemForm({
           onChange={handleChange}
           rows={3}
           className={`w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm ${
-            errors.description ? 'border-red-300 text-red-900 placeholder-red-300 focus:border-red-500 focus:ring-red-500' : ''
+            errors.description
+              ? "border-red-300 text-red-900 placeholder-red-300 focus:border-red-500 focus:ring-red-500"
+              : ""
           }`}
           placeholder="Describe your menu item..."
           required
         />
-        {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
+        {errors.description && (
+          <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+        )}
       </div>
-      
+
       <div>
         <Select
           label="Category"
@@ -205,18 +205,14 @@ export function MenuItemForm({
           required
         />
       </div>
-      
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Tags
         </label>
         <div className="flex flex-wrap gap-2 mb-2">
           {formData.tags.map((tag) => (
-            <Badge
-              key={tag}
-              variant="secondary"
-              className="flex items-center"
-            >
+            <Badge key={tag} variant="secondary" className="flex items-center">
               {tag}
               <button
                 type="button"
@@ -234,7 +230,7 @@ export function MenuItemForm({
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === "Enter") {
                 e.preventDefault();
                 handleAddTag();
               }
@@ -251,7 +247,7 @@ export function MenuItemForm({
           </button>
         </div>
       </div>
-      
+
       <div>
         <div className="flex items-center mb-4">
           <input
@@ -262,67 +258,15 @@ export function MenuItemForm({
             onChange={handleChange}
             className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
           />
-          <label htmlFor="available" className="ml-2 block text-sm text-gray-700">
+          <label
+            htmlFor="available"
+            className="ml-2 block text-sm text-gray-700"
+          >
             Item is available for ordering
           </label>
         </div>
       </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Item Image
-        </label>
-        
-        <div className="mt-1 flex items-center">
-          {previewImage ? (
-            <div className="relative w-32 h-32 mr-4">
-              <img
-                src={previewImage}
-                alt="Preview"
-                className="object-cover w-full h-full rounded-md"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setPreviewImage(undefined);
-                  setFormData({
-                    ...formData,
-                    image: undefined,
-                  });
-                }}
-                className="absolute top-0 right-0 bg-red-600 text-white p-1 rounded-full shadow"
-              >
-                &times;
-              </button>
-            </div>
-          ) : (
-            <div className="w-32 h-32 border-2 border-gray-300 border-dashed rounded-md flex items-center justify-center mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-          )}
-          
-          <input
-            id="image"
-            name="image"
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            className="hidden"
-          />
-          <label
-            htmlFor="image"
-            className="cursor-pointer py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            {previewImage ? 'Change Image' : 'Upload Image'}
-          </label>
-        </div>
-        <p className="mt-1 text-sm text-gray-500">
-          JPG, PNG or GIF up to 5MB
-        </p>
-      </div>
-      
+
       <div className="flex justify-end space-x-3 pt-4 border-t">
         <Button
           type="button"
@@ -332,12 +276,8 @@ export function MenuItemForm({
         >
           Cancel
         </Button>
-        <Button
-          type="submit"
-          variant="primary"
-          isLoading={isLoading}
-        >
-          {initialData.id ? 'Update Item' : 'Create Item'}
+        <Button type="submit" variant="primary" isLoading={isLoading}>
+          {initialData.id ? "Update Item" : "Create Item"}
         </Button>
       </div>
     </form>

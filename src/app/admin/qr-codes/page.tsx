@@ -7,21 +7,55 @@ import { Input } from "@/components/ui/Input";
 import { QRCodeCard } from "@/components/qr-code/QRCodeCard";
 import { PageHeader } from "@/components/shared/PageHeader";
 
-export default function QRCodesPage() {
-  const [tables, setTables] = useState<number[]>([]);
-  const [newTableNumber, setNewTableNumber] = useState("");
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : ""; // Safe access to window
+import { useEffect } from "react";
+import { getTablesFromDB, addTableToDB } from "@/lib/firebase/firestore";
+import { useAuth } from "@/lib/context/AuthContext";
 
-  const handleAddTable = () => {
+export default function QRCodesPage() {
+  const { user } = useAuth();
+  const [tables, setTables] = useState<{ id: string; number: number }[]>([]);
+  const [newTableNumber, setNewTableNumber] = useState("");
+  const [loading, setLoading] = useState(true);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const restaurantId = user?.uid;
+  useEffect(() => {
+    const loadTables = async () => {
+      if (!restaurantId) return;
+      try {
+        const tableData = await getTablesFromDB(restaurantId);
+        setTables(tableData.sort((a, b) => a.number - b.number));
+      } catch (error) {
+        console.error("Error loading tables:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTables();
+  }, [restaurantId]);
+  const handleAddTable = async () => {
+    if (!restaurantId) return;
+
     const tableNum = parseInt(newTableNumber);
-    if (tableNum && !tables.includes(tableNum)) {
-      setTables([...tables, tableNum].sort((a, b) => a - b));
-      setNewTableNumber("");
+    if (tableNum && !tables.some((t) => t.number === tableNum)) {
+      try {
+        await addTableToDB(restaurantId, tableNum);
+        const tableData = await getTablesFromDB(restaurantId);
+        setTables(tableData.sort((a, b) => a.number - b.number));
+        setNewTableNumber("");
+      } catch (error) {
+        console.error("Error adding table:", error);
+      }
     }
   };
-
-  const handleRemoveTable = (tableNumber: number) => {
-    setTables(tables.filter((t) => t !== tableNumber));
+  const handleRemoveTable = async (table: { id: string; number: number }) => {
+    if (!restaurantId) return;
+    try {
+      await deleteTableFromDB(restaurantId, table.id);
+      setTables(tables.filter((t) => t.id !== table.id));
+    } catch (error) {
+      console.error("Error removing table:", error);
+    }
   };
 
   return (
@@ -50,15 +84,15 @@ export default function QRCodesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tables.map((tableNum) => (
-            <div key={tableNum} className="relative">
+          {tables.map((table) => (
+            <div key={`table-${table.id}`} className="relative">
               <button
-                onClick={() => handleRemoveTable(tableNum)}
+                onClick={() => handleRemoveTable(table)}
                 className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm hover:bg-red-600 z-10"
               >
                 ×
               </button>
-              <QRCodeCard tableNumber={tableNum} baseUrl={baseUrl} />
+              <QRCodeCard tableNumber={table.number} baseUrl={baseUrl} />
             </div>
           ))}
         </div>

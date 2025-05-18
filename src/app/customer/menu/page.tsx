@@ -2,317 +2,235 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { Input } from "@/components/ui/Input";
-import { Card } from "@/components/ui/Card";
+import { validateQrCode } from "@/lib/firebase/firestore";
+import { MenuProvider, useMenu } from "@/components/providers/MenuProvider";
+import { getMenuCategoriesFromDB } from "@/lib/firebase/firestore";
+import { getRestaurantByID } from "@/lib/firebase/restaurant";
 
-interface MenuItem {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  tags: string[];
-  image?: string;
-  available: boolean;
-}
-
-interface Category {
+interface CartItem {
   id: string;
   name: string;
+  price: number;
+  quantity: number;
+  basePrice: number;
+  selectedOptions?: string[];
+  selectedSize?: string;
+  specialInstructions?: string;
 }
 
-export default function MenuPage() {
+interface MenuCategory {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+function MenuContent() {
+  const { items, loading, error } = useMenu();
+  const [cart, setCart] = useState<{ items: CartItem[]; total: number }>({
+    items: [],
+    total: 0,
+  });
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>();
+  const [restaurantName, setRestaurantName] = useState<string>("");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const urlTableNumber = searchParams.get("table");
-  const [tableNumber, setTableNumber] = useState<string>("No table selected");
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [cartItems, setCartItems] = useState<any[]>([]);
+  const restaurantId = searchParams.get("restaurant");
+  const tableId = searchParams.get("table");
 
+  // Load restaurant details
   useEffect(() => {
-    // Get table number from URL or storage
-    if (urlTableNumber) {
-      // If URL has table number, use it and update storage
-      setTableNumber(urlTableNumber);
-      localStorage.setItem("tableId", urlTableNumber);
-    } else {
-      // If no URL table number, try to get from storage
-      const storedTableId = localStorage.getItem("tableId");
-      if (storedTableId) {
-        setTableNumber(storedTableId);
-        // Redirect to include table number in URL for consistency
-        router.push(`/customer/menu?table=${storedTableId}`);
-      } else {
-        // If no table number anywhere, redirect to scan
-        router.push("/customer/scan");
-        return;
-      }
-    }
-
-    // Rest of your existing useEffect code for loading cart...
-    const loadCart = () => {
+    const loadRestaurantDetails = async () => {
+      if (!restaurantId) return;
       try {
-        const savedCart = localStorage.getItem("cartItems");
-        if (savedCart) {
-          setCartItems(JSON.parse(savedCart));
+        const restaurant = await getRestaurantByID(restaurantId);
+        if (restaurant) {
+          setRestaurantName(restaurant.name);
         } else {
-          const sessionCart = sessionStorage.getItem("cartItems");
-          if (sessionCart) {
-            setCartItems(JSON.parse(sessionCart));
-            localStorage.setItem("cartItems", sessionCart);
-          }
+          setRestaurantName(`Restaurant ${restaurantId.substring(0, 6)}`);
         }
       } catch (error) {
-        console.error("Failed to load cart:", error);
+        console.error("Error loading restaurant details:", error);
+        setRestaurantName(`Restaurant ${restaurantId.substring(0, 6)}`);
+      }
+    };
+    loadRestaurantDetails();
+  }, [restaurantId]);
+
+  // Load menu categories from Firebase
+  useEffect(() => {
+    const loadCategories = async () => {
+      if (!restaurantId) return;
+      try {
+        const cats = await getMenuCategoriesFromDB(restaurantId);
+        setCategories(cats);
+        if (cats.length > 0) {
+          setActiveCategory(cats[0].id);
+        }
+      } catch (error) {
+        console.error("Error loading categories:", error);
+      }
+    };
+    loadCategories();
+  }, [restaurantId]);
+
+  // Load cart from localStorage and update on any changes
+  useEffect(() => {
+    const loadCart = () => {
+      const savedCart = localStorage.getItem("cartItems");
+      if (savedCart) {
+        try {
+          const cartItems = JSON.parse(savedCart) as CartItem[];
+          const total = cartItems.reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          );
+          setCart({ items: cartItems, total });
+        } catch (error) {
+          console.error("Failed to parse cart:", error);
+        }
       }
     };
 
+    // Load cart initially
     loadCart();
-    window.addEventListener("storage", loadCart);
-    return () => window.removeEventListener("storage", loadCart);
-  }, [searchParams, router, urlTableNumber]);
 
-  // Load menu data
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMenuItems(sampleMenuItems);
-      setCategories(sampleCategories);
-      setSelectedCategory(sampleCategories[0].id);
-    }, 1000);
+    // Listen for storage events to update cart when changed in other tabs/windows
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "cartItems") {
+        loadCart();
+      }
+    };
 
-    return () => clearTimeout(timer);
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  const getCartItemQuantity = (itemId: number) => {
-    const item = cartItems.find((item) => item.id === itemId);
-    return item ? item.quantity : 0;
-  };
+  const handleAddToCart = (item: {
+    id: string;
+    name: string;
+    price: number | string;
+  }) => {
+    const basePrice =
+      typeof item.price === "string" ? parseFloat(item.price) : item.price;
+    const existingItem = cart.items.find((cartItem) => cartItem.id === item.id);
+    let newCartItems: CartItem[];
 
-  const getTotalCartItems = () => {
-    return cartItems.reduce((total, item) => total + item.quantity, 0);
-  };
+    if (existingItem) {
+      newCartItems = cart.items.map((cartItem) =>
+        cartItem.id === item.id
+          ? { ...cartItem, quantity: cartItem.quantity + 1, price: basePrice }
+          : cartItem
+      );
+    } else {
+      newCartItems = [
+        ...cart.items,
+        {
+          id: item.id,
+          name: item.name,
+          price: basePrice,
+          basePrice: basePrice,
+          quantity: 1,
+        },
+      ];
+    }
 
-  const getTotalCartPrice = () => {
-    return cartItems.reduce(
-      (total, item) => total + item.price * item.quantity,
+    const newTotal = newCartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
       0
     );
+    const newCart = { items: newCartItems, total: newTotal };
+    setCart(newCart);
+    localStorage.setItem("cartItems", JSON.stringify(newCartItems));
   };
 
-  const removeItemFromCart = (itemId: number) => {
-    try {
-      const updatedCart = cartItems.filter((item) => item.id !== itemId);
-      setCartItems(updatedCart);
-      localStorage.setItem("cartItems", JSON.stringify(updatedCart));
-      sessionStorage.setItem("cartItems", JSON.stringify(updatedCart));
-    } catch (error) {
-      console.error("Failed to remove item from cart:", error);
-    }
-  };
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto p-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      </div>
+    );
+  }
 
-  // Update the filtered items to include a removal button
-  const filteredItems = menuItems.filter((item) => {
-    // Filter by category if one is selected
-    const matchesCategory = selectedCategory
-      ? item.category === selectedCategory
-      : true;
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-gray-200 h-48 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-    // Filter by search query if one is entered
-    const matchesSearch = searchQuery
-      ? item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase())
-      : true;
-
-    return matchesCategory && matchesSearch && item.available;
-  });
+  const filteredItems = activeCategory
+    ? items.filter((item) => item.categoryId === activeCategory)
+    : items;
 
   return (
-    <div className="min-h-screen pb-16">
-      {/* Header */}
-      <header className="bg-white sticky top-0 z-10 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 mr-3">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                <path
-                  fillRule="evenodd"
-                  d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">
-                The Gourmet Kitchen
-              </h1>
-              <p className="text-sm text-gray-500">Table {tableNumber}</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Checkout Banner - Show when items in cart */}
-      {cartItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t z-20">
-          <div className="max-w-4xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">
-                  {getTotalCartItems()} items in cart
-                </p>
-                <p className="text-lg font-bold text-gray-900">
-                  ${getTotalCartPrice().toFixed(2)}
-                </p>
-              </div>
-              <Link href="/customer/checkout">
-                <Button variant="primary" size="lg">
-                  Proceed to Checkout
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rest of the menu content */}
-      <div className="max-w-4xl mx-auto px-4 py-4">
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <Input
-            placeholder="Search menu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1"
-          />
-        </div>
-
-        {/* Categories */}
+    <>
+      {" "}
+      <div className="container mx-auto px-4 py-8 pb-32">
+        {/* Restaurant Name and Table Number */}
         <div className="mb-8">
-          {menuItems.length === 0 ? (
-            <div className="flex overflow-x-auto pb-2 space-x-2">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-10 w-32 rounded-full" />
-              ))}
-            </div>
-          ) : (
-            <div className="flex overflow-x-auto pb-2 space-x-2">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium ${
-                    selectedCategory === category.id
-                      ? "bg-primary-100 text-primary-800 border border-primary-200"
-                      : "bg-gray-100 text-gray-800 hover:bg-gray-200 border border-transparent"
-                  }`}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <h1 className="text-2xl font-bold mb-2">
+            {restaurantName
+              ? restaurantName
+              : `Restaurant ${restaurantId.substring(0, 6)}`}
+          </h1>
+          <p className="text-gray-600">Table {tableId}</p>
+        </div>{" "}
+        {/* Category Navigation */}
+        <div className="flex overflow-x-auto gap-2 mb-8 pb-2">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${
+                activeCategory === category.id
+                  ? "bg-blue-600 text-white font-medium"
+                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+              }`}
+              onClick={() => setActiveCategory(category.id)}
+            >
+              {category.name}
+            </button>
+          ))}
         </div>
-
-        {/* Menu Items */}
-        <div className="space-y-6 mb-20">
-          {" "}
-          {/* Added margin bottom for checkout banner */}
-          {menuItems.length === 0 ? (
-            // Loading skeletons
-            Array(3)
-              .fill(0)
-              .map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-lg shadow overflow-hidden"
-                >
-                  <div className="md:flex">
-                    <div className="md:w-1/3">
-                      <Skeleton className="h-40 md:h-full w-full" />
-                    </div>
-                    <div className="p-4 md:w-2/3">
-                      <Skeleton className="h-6 w-3/4 mb-2" />
-                      <Skeleton className="h-4 w-full mb-2" />
-                      <Skeleton className="h-4 w-3/4 mb-3" />
-                      <div className="flex justify-between items-center">
-                        <Skeleton className="h-8 w-20" />
-                        <Skeleton className="h-10 w-32" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-          ) : filteredItems.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-12 w-12 mx-auto text-gray-400 mb-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                />
-              </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No menu items found
-              </h3>
-              <p className="text-gray-500 mb-4">
-                Try adjusting your search or filter criteria
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory(categories[0].id);
-                }}
-              >
-                Reset Filters
-              </Button>
-            </div>
-          ) : (
-            // Menu items
-            filteredItems.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow"
-              >
-                <div className="md:flex">
-                  <div className="md:w-1/3 h-40 md:h-auto bg-gray-200 relative">
-                    {item.image ? (
-                      <img
-                        src={item.image}
+        {/* Menu Items Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredItems.map((item) => {
+            const cartItem = cart.items.find(
+              (cartItem) => cartItem.id === item.id
+            );
+            return (
+              <Card key={item.id} className="h-full">
+                <div className="flex h-40">
+                  <div className="w-1/3 bg-gray-200 relative">
+                    {item.imageSrc ? (
+                      <Image
+                        src={item.imageSrc}
                         alt={item.name}
+                        width={160}
+                        height={160}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="h-12 w-12"
+                          className="h-8 w-8 text-gray-400"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -327,195 +245,149 @@ export default function MenuPage() {
                       </div>
                     )}
                   </div>
-                  <div className="p-4 md:w-2/3">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-medium text-lg text-gray-900">
-                        {item.name}
-                      </h3>
-                      <span className="font-medium text-gray-900">
-                        ${item.price.toFixed(2)}
-                      </span>
-                    </div>
-
-                    <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                      {item.description}
-                    </p>
-
-                    {item.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {item.tags.map((tag, index) => (
-                          <Badge
-                            key={index}
-                            variant={
-                              tag.toLowerCase() === "vegetarian"
-                                ? "success"
-                                : tag.toLowerCase() === "spicy"
-                                ? "danger"
-                                : tag.toLowerCase() === "popular"
-                                ? "primary"
-                                : "default"
-                            }
-                            size="sm"
-                          >
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between mt-auto">
-                      {getCartItemQuantity(item.id) > 0 && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-primary-600">
-                            {getCartItemQuantity(item.id)} in cart
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              removeItemFromCart(item.id);
-                            }}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
+                  <div className="w-2/3 p-4 flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-medium">{item.name}</h3>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        {item.description}
+                      </p>
+                      {item.tags && item.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {item.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant={
+                                tag.toLowerCase() === "vegetarian"
+                                  ? "success"
+                                  : tag.toLowerCase() === "spicy"
+                                  ? "danger"
+                                  : tag.toLowerCase() === "popular"
+                                  ? "primary"
+                                  : "default"
+                              }
+                              size="sm"
                             >
-                              <path
-                                fillRule="evenodd"
-                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </button>
+                              {tag}
+                            </Badge>
+                          ))}
                         </div>
                       )}
-
-                      <Link href={`/customer/menu/${item.id}`}>
-                        <Button variant="primary">
-                          {getCartItemQuantity(item.id) > 0
-                            ? "Update Order"
-                            : "Add to Cart"}
-                        </Button>
-                      </Link>
+                    </div>
+                    <div className="flex items-center justify-between mt-4">
+                      <p className="font-medium">
+                        $
+                        {(typeof item.price === "string"
+                          ? parseFloat(item.price)
+                          : item.price
+                        ).toFixed(2)}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {cartItem && (
+                          <span className="text-sm text-gray-600">
+                            × {cartItem.quantity}
+                          </span>
+                        )}{" "}
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() =>
+                              handleAddToCart({
+                                id: item.id,
+                                name: item.name,
+                                price: item.price,
+                              })
+                            }
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
+              </Card>
+            );
+          })}
         </div>
       </div>
-    </div>
+      {/* Cart Summary Fixed at Bottom */}
+      {cart.items.length > 0 && (
+        <div className="fixed bottom-0 inset-x-0 bg-white border-t shadow-lg">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">
+                {cart.items.length} items in cart
+              </p>
+              <p className="font-medium">${cart.total.toFixed(2)}</p>
+            </div>{" "}
+            <Link
+              href={`/customer/cart?restaurant=${restaurantId}&table=${tableId}`}
+            >
+              <Button variant="primary" size="md">
+                View Cart
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
-// Sample data for the menu page
-const sampleCategories: Category[] = [
-  { id: "appetizers", name: "Appetizers" },
-  { id: "main-courses", name: "Main Courses" },
-  { id: "desserts", name: "Desserts" },
-  { id: "beverages", name: "Beverages" },
-  { id: "sides", name: "Sides" },
-];
+export default function CustomerMenuPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tableId = searchParams.get("table");
+  const restaurantId =
+    searchParams.get("restaurant") ||
+    process.env.NEXT_PUBLIC_DEFAULT_RESTAURANT_ID;
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-const sampleMenuItems: MenuItem[] = [
-  {
-    id: 1,
-    name: "Classic Cheeseburger",
-    description:
-      "Juicy beef patty with cheddar cheese, lettuce, tomato, and our special sauce on a brioche bun.",
-    price: 12.99,
-    category: "main-courses",
-    tags: ["Popular"],
-    available: true,
-  },
-  {
-    id: 2,
-    name: "French Fries",
-    description: "Crispy golden fries seasoned with sea salt.",
-    price: 4.99,
-    category: "sides",
-    tags: ["Vegetarian"],
-    available: true,
-  },
-  {
-    id: 3,
-    name: "Chocolate Brownie",
-    description:
-      "Rich, fudgy brownie served warm with vanilla ice cream and chocolate sauce.",
-    price: 6.99,
-    category: "desserts",
-    tags: ["Vegetarian", "Popular"],
-    available: true,
-  },
-  {
-    id: 4,
-    name: "Caesar Salad",
-    description:
-      "Crisp romaine lettuce with parmesan cheese, croutons, and Caesar dressing.",
-    price: 9.99,
-    category: "appetizers",
-    tags: ["Vegetarian"],
-    available: true,
-  },
-  {
-    id: 5,
-    name: "Margherita Pizza",
-    description:
-      "Traditional pizza with tomato sauce, fresh mozzarella, and basil on our hand-tossed crust.",
-    price: 14.99,
-    category: "main-courses",
-    tags: ["Vegetarian", "Popular"],
-    available: true,
-  },
-  {
-    id: 6,
-    name: "Buffalo Wings",
-    description:
-      "Crispy chicken wings tossed in spicy buffalo sauce, served with celery and blue cheese dressing.",
-    price: 10.99,
-    category: "appetizers",
-    tags: ["Spicy"],
-    available: true,
-  },
-  {
-    id: 7,
-    name: "Soft Drink",
-    description: "Choose from Coca-Cola, Diet Coke, Sprite, or Fanta.",
-    price: 2.49,
-    category: "beverages",
-    tags: [],
-    available: true,
-  },
-  {
-    id: 8,
-    name: "Grilled Salmon",
-    description:
-      "Fresh Atlantic salmon fillet, grilled to perfection and served with seasonal vegetables.",
-    price: 18.99,
-    category: "main-courses",
-    tags: ["Healthy"],
-    available: true,
-  },
-  {
-    id: 9,
-    name: "Chocolate Milkshake",
-    description:
-      "Rich and creamy chocolate milkshake topped with whipped cream.",
-    price: 5.99,
-    category: "beverages",
-    tags: ["Vegetarian"],
-    available: true,
-  },
-  {
-    id: 10,
-    name: "Onion Rings",
-    description: "Crispy battered onion rings served with dipping sauce.",
-    price: 6.99,
-    category: "sides",
-    tags: ["Vegetarian"],
-    available: true,
-  },
-];
+  // Validate table and restaurant IDs
+  useEffect(() => {
+    const validateAccess = async () => {
+      if (!tableId || !restaurantId) {
+        router.push("/customer/scan");
+        return;
+      }
+
+      try {
+        const result = await validateQrCode(restaurantId, parseInt(tableId));
+        if (!result?.isValid) {
+          setValidationError(
+            "Invalid table or restaurant. Please scan the QR code again."
+          );
+          setTimeout(() => router.push("/customer/scan"), 3000);
+          return;
+        }
+      } catch (error) {
+        console.error("Error validating access:", error);
+        setValidationError("Something went wrong. Please try again.");
+        setTimeout(() => router.push("/customer/scan"), 3000);
+      }
+    };
+
+    validateAccess();
+  }, [tableId, restaurantId, router]);
+
+  if (validationError) {
+    return (
+      <div className="max-w-md mx-auto p-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {validationError}
+        </div>
+      </div>
+    );
+  }
+
+  if (!restaurantId || !tableId) {
+    return null;
+  }
+
+  return (
+    <MenuProvider restaurantId={restaurantId}>
+      <MenuContent />
+    </MenuProvider>
+  );
+}

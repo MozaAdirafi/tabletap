@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
 interface QRScannerProps {
-  onResult: (tableId: string) => void;
+  onResult: (result: string) => void;
   onError?: (error: string) => void;
 }
 
@@ -29,29 +29,33 @@ export function QRScanner({ onResult, onError }: QRScannerProps) {
           },
           (decodedText) => {
             try {
-              // Expected format: https://yourdomain.com/table/123
+              // Now the URL will be in the format: baseUrl/customer/scan?table=X&restaurant=Y
               const url = new URL(decodedText);
-              const tableId = url.pathname.split("/").pop();
-              if (tableId) {
+              if (
+                url.searchParams.has("table") &&
+                url.searchParams.has("restaurant")
+              ) {
                 html5QrCode.stop();
                 setIsScanning(false);
-                onResult(tableId);
+                onResult(decodedText);
+              } else {
+                throw new Error("Invalid QR code format");
               }
-            } catch (e) {
+            } catch {
               setError("Invalid QR code");
               onError?.("Invalid QR code");
             }
           },
-          (error) => {
+          () => {
             // Ignore errors during scanning
           }
         );
 
         setIsScanning(true);
         setError(null);
-      } catch (err) {
-        setError("Failed to start camera");
-        onError?.("Failed to start camera");
+      } catch {
+        setError("Could not start scanner");
+        onError?.("Could not start scanner");
       }
     };
 
@@ -69,17 +73,14 @@ export function QRScanner({ onResult, onError }: QRScannerProps) {
   return (
     <Card className="p-4">
       <div className="text-center">
-        <h2 className="text-lg font-semibold mb-4">Scan Table QR Code</h2>
+        <h2 className="text-xl font-semibold mb-4">Scan Table QR Code</h2>
         <div
           id="qr-reader"
           className="mx-auto mb-4"
           style={{ width: "300px", height: "300px" }}
         />
-        {error && <div className="text-red-600 mb-4">{error}</div>}
-        <Button
-          variant={isScanning ? "outline" : "primary"}
-          onClick={() => setIsScanning(!isScanning)}
-        >
+        {error && <div className="text-red-500 mb-4">{error}</div>}
+        <Button onClick={() => setIsScanning(!isScanning)} variant="primary">
           {isScanning ? "Stop Scanner" : "Start Scanner"}
         </Button>
       </div>

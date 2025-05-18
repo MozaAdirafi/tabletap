@@ -5,49 +5,85 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
-import {
-  Order,
-  getOrders,
-  updateOrderStatus,
-  deleteOrder,
-  subscribeToOrderUpdates,
-} from "@/lib/utils/store";
+import { Order, updateOrderStatus, deleteOrder } from "@/lib/utils/store";
+import { subscribeToOrders } from "@/lib/firebase/firestore";
+import { useAuth } from "@/lib/context/AuthContext";
 
 export default function OrdersPage() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Order["status"] | "all">("all");
-
+  const [statusFilter, setStatusFilter] = useState<Order["status"] | "all">(
+    "all"
+  );
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    // Load initial orders
-    setOrders(getOrders());
+    if (!user) {
+      console.error("No user found");
+      return;
+    }
+    const restaurantId = user.uid;
+    if (!restaurantId) {
+      console.error("Restaurant ID is not set");
+      return;
+    }
 
-    // Subscribe to order updates
-    const unsubscribe = subscribeToOrderUpdates((updatedOrder) => {
-      setOrders((prevOrders) => {
-        const orderIndex = prevOrders.findIndex((o) => o.id === updatedOrder.id);
-        if (orderIndex >= 0) {
-          const newOrders = [...prevOrders];
-          newOrders[orderIndex] = updatedOrder;
-          return newOrders;
-        }
-        return [...prevOrders, updatedOrder];
-      });
+    // Subscribe to real-time order updates
+    const unsubscribe = subscribeToOrders(restaurantId, (updatedOrders) => {
+      setOrders(updatedOrders);
+      setLoading(false);
     });
 
     return () => {
       unsubscribe();
     };
-  }, []);
-
-  const handleStatusChange = (orderId: number, newStatus: Order["status"]) => {
-    updateOrderStatus(orderId, newStatus);
+  }, [user]);
+  const handleStatusChange = async (
+    orderId: number,
+    newStatus: Order["status"]
+  ) => {
+    try {
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
+      const restaurantId = user.uid;
+      if (!restaurantId) {
+        throw new Error("Restaurant ID is not set");
+      }
+      await updateOrderStatus(restaurantId, orderId, newStatus);
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      alert(
+        `Failed to update order status: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   };
-
-  const handleDeleteOrder = (orderId: number) => {
+  const handleDeleteOrder = async (orderId: number) => {
     if (window.confirm("Are you sure you want to delete this order?")) {
-      deleteOrder(orderId);
-      setOrders((prevOrders) => prevOrders.filter((o) => o.id !== orderId));
+      try {
+        if (!user) {
+          throw new Error("Not authenticated");
+        }
+        const restaurantId = user.uid;
+        if (!restaurantId) {
+          throw new Error("Restaurant ID is not set");
+        }
+
+        console.log(
+          `Attempting to delete order ${orderId} with status ${
+            orders.find((o) => o.id === orderId)?.status
+          }`
+        );
+        await deleteOrder(restaurantId, orderId);
+        console.log("Order deleted successfully");
+      } catch (error) {
+        console.error(`Error deleting order ${orderId}:`, error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        alert(`Failed to delete order: ${errorMessage}. Please try again.`);
+      }
     }
   };
 
@@ -80,6 +116,10 @@ export default function OrdersPage() {
     }
   };
 
+  if (loading) {
+    return <div className="text-center py-8">Loading orders...</div>;
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -93,7 +133,9 @@ export default function OrdersPage() {
           />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as Order["status"] | "all")}
+            onChange={(e) =>
+              setStatusFilter(e.target.value as Order["status"] | "all")
+            }
             className="px-3 py-2 border border-gray-300 rounded-md"
           >
             <option value="all">All Status</option>
@@ -108,9 +150,7 @@ export default function OrdersPage() {
 
       <div className="space-y-4">
         {filteredOrders.length === 0 ? (
-          <Card className="p-6 text-center text-gray-500">
-            No orders found
-          </Card>
+          <Card className="p-6 text-center text-gray-500">No orders found</Card>
         ) : (
           filteredOrders.map((order) => (
             <Card key={order.id} className="p-6">
@@ -149,37 +189,18 @@ export default function OrdersPage() {
               </div>
 
               <div className="flex justify-between items-center">
+                {" "}
                 <div className="space-x-2">
-                  {order.status !== "cancelled" && order.status !== "delivered" && (
+                  {order.status === "pending" && (
                     <>
-                      {order.status === "pending" && (
-                        <Button
-                          variant="primary"
-                          onClick={() =>
-                            handleStatusChange(order.id, "preparing")
-                          }
-                        >
-                          Start Preparing
-                        </Button>
-                      )}
-                      {order.status === "preparing" && (
-                        <Button
-                          variant="primary"
-                          onClick={() => handleStatusChange(order.id, "ready")}
-                        >
-                          Mark as Ready
-                        </Button>
-                      )}
-                      {order.status === "ready" && (
-                        <Button
-                          variant="primary"
-                          onClick={() =>
-                            handleStatusChange(order.id, "delivered")
-                          }
-                        >
-                          Mark as Delivered
-                        </Button>
-                      )}
+                      <Button
+                        variant="primary"
+                        onClick={() =>
+                          handleStatusChange(order.id, "preparing")
+                        }
+                      >
+                        Start Preparing
+                      </Button>
                       <Button
                         variant="outline"
                         onClick={() =>
@@ -189,6 +210,66 @@ export default function OrdersPage() {
                         Cancel Order
                       </Button>
                     </>
+                  )}
+                  {order.status === "preparing" && (
+                    <>
+                      <Button
+                        variant="primary"
+                        onClick={() => handleStatusChange(order.id, "ready")}
+                      >
+                        Mark as Ready
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleStatusChange(order.id, "pending")}
+                      >
+                        Back to Order Placed
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          handleStatusChange(order.id, "cancelled")
+                        }
+                      >
+                        Cancel Order
+                      </Button>
+                    </>
+                  )}
+                  {order.status === "ready" && (
+                    <>
+                      <Button
+                        variant="primary"
+                        onClick={() =>
+                          handleStatusChange(order.id, "delivered")
+                        }
+                      >
+                        Mark as Delivered
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          handleStatusChange(order.id, "preparing")
+                        }
+                      >
+                        Back to Preparing
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          handleStatusChange(order.id, "cancelled")
+                        }
+                      >
+                        Cancel Order
+                      </Button>
+                    </>
+                  )}
+                  {order.status === "delivered" && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleStatusChange(order.id, "ready")}
+                    >
+                      Back to Ready
+                    </Button>
                   )}
                 </div>
                 <div className="text-right">

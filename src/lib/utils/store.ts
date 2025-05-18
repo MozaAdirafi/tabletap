@@ -1,6 +1,14 @@
+import { doc, deleteDoc } from "firebase/firestore";
+import {
+  getOrdersFromDB,
+  addOrderToDB,
+  updateOrderStatusInDB,
+  getOrdersRef,
+} from "@/lib/firebase/firestore";
+
 // Types
 export interface MenuItem {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;
@@ -17,7 +25,7 @@ export interface MenuCategory {
 }
 
 export interface Order {
-  id: number;
+  id: string;
   tableId: string;
   items: { menuItem: MenuItem; quantity: number }[];
   status: "pending" | "preparing" | "ready" | "delivered" | "cancelled";
@@ -42,7 +50,11 @@ export const subscribeToMenuUpdates = (listener: Listener) => {
   };
 };
 
-export const subscribeToOrderUpdates = (listener: OrderListener) => {
+export const subscribeToOrderUpdates = (
+  restaurantId: string,
+  listener: OrderListener
+) => {
+  // TODO: Use restaurantId to filter orders from specific restaurant
   orderListeners.push(listener);
   return () => {
     const index = orderListeners.indexOf(listener);
@@ -53,17 +65,17 @@ export const subscribeToOrderUpdates = (listener: OrderListener) => {
 };
 
 const notifyMenuListeners = () => {
-  menuListeners.forEach(listener => listener());
+  menuListeners.forEach((listener) => listener());
 };
 
 const notifyOrderListeners = (order: Order) => {
-  orderListeners.forEach(listener => listener(order));
+  orderListeners.forEach((listener) => listener(order));
 };
 
-// Mock data and storage functions
+// Temporary storage until Firebase integration
 let menuItems: MenuItem[] = [
   {
-    id: 1,
+    id: "1",
     name: "Classic Burger",
     description:
       "Juicy beef patty with fresh lettuce, tomato, and our special sauce",
@@ -73,7 +85,7 @@ let menuItems: MenuItem[] = [
     categoryId: "burgers",
   },
   {
-    id: 2,
+    id: "2",
     name: "Caesar Salad",
     description:
       "Fresh romaine lettuce, croutons, parmesan cheese with caesar dressing",
@@ -97,8 +109,6 @@ let menuCategories: MenuCategory[] = [
   },
 ];
 
-let orders: Order[] = [];
-
 // Menu item operations
 export const getMenuItems = (): MenuItem[] => menuItems;
 
@@ -115,7 +125,7 @@ export const updateMenuItem = (item: MenuItem) => {
   }
 };
 
-export const deleteMenuItem = (id: number) => {
+export const deleteMenuItem = (id: string) => {
   menuItems = menuItems.filter((item) => item.id !== id);
   notifyMenuListeners();
 };
@@ -142,41 +152,44 @@ export const deleteMenuCategory = (id: string) => {
 };
 
 // Order operations
-export const getOrders = (): Order[] => orders;
-
-export const addOrder = (order: Order) => {
-  // Generate a unique ID if not provided
-  if (!order.id) {
-    order.id = orders.length > 0 ? Math.max(...orders.map(o => o.id)) + 1 : 1;
-  }
-  
-  // Set createdAt if not provided
-  if (!order.createdAt) {
-    order.createdAt = new Date();
-  }
-  
-  orders.push(order);
-  notifyOrderListeners(order);
+export const getOrders = async (restaurantId: string): Promise<Order[]> => {
+  if (!restaurantId) throw new Error("Restaurant ID is not set");
+  return await getOrdersFromDB(restaurantId);
 };
 
-export const updateOrderStatus = (orderId: number, status: Order["status"]) => {
-  const order = orders.find((o) => o.id === orderId);
-  if (order) {
-    order.status = status;
-    notifyOrderListeners(order);
-  }
+export const addOrder = async (
+  restaurantId: string,
+  order: Omit<Order, "id">
+): Promise<Order> => {
+  if (!restaurantId) throw new Error("Restaurant ID is not set");
+  const newOrder = await addOrderToDB(restaurantId, order);
+  notifyOrderListeners(newOrder);
+  return newOrder;
 };
 
-export const deleteOrder = (id: number) => {
-  orders = orders.filter((order) => order.id !== id);
+export const updateOrderStatus = async (
+  restaurantId: string,
+  orderId: number,
+  status: Order["status"]
+): Promise<void> => {
+  if (!restaurantId) throw new Error("Restaurant ID is not set");
+  await updateOrderStatusInDB(restaurantId, orderId, status);
 };
 
-// Get order by ID
-export const getOrderById = (id: number): Order | undefined => {
-  return orders.find(order => order.id === id);
+export const getOrderById = async (
+  restaurantId: string,
+  id: number
+): Promise<Order | undefined> => {
+  if (!restaurantId) throw new Error("Restaurant ID is not set");
+  const orders = await getOrdersFromDB(restaurantId);
+  return orders.find((order: Order) => order.id === id);
 };
 
-// Get orders by table ID
-export const getOrdersByTable = (tableId: string): Order[] => {
-  return orders.filter(order => order.tableId === tableId);
+export const deleteOrder = async (
+  restaurantId: string,
+  id: number
+): Promise<void> => {
+  if (!restaurantId) throw new Error("Restaurant ID is not set");
+  const orderRef = doc(getOrdersRef(restaurantId), id.toString());
+  await deleteDoc(orderRef);
 };

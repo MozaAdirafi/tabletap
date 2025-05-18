@@ -6,17 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "clean": "rimraf .next",
+    "dev:clean": "npm run clean && npm run dev"
   },
   "dependencies": {
     "@firebase/app": "^0.12.3",
     "@firebase/auth": "^1.10.4",
     "@firebase/firestore": "^4.7.14",
     "@hookform/resolvers": "^5.0.1",
+    "@types/jspdf": "^2.0.0",
     "axios": "^1.9.0",
     "clsx": "^2.1.1",
     "firebase": "^11.7.3",
     "html5-qrcode": "^2.3.8",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "next": "15.3.2",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
@@ -24,6 +29,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.56.3",
     "react-icons": "^5.5.0",
+    "tailwind-merge": "^3.3.0",
     "zod": "^3.24.4"
   },
   "devDependencies": {
@@ -34,6 +40,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.3.2",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -5,37 +5,38 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Order, getOrderById, subscribeToOrderUpdates } from "@/lib/utils/store";
+import { Order, getOrderById } from "@/lib/utils/store";
 
 export default function ConfirmationPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [order, setOrder] = useState<Order | null>(null);
+  const searchParams = useSearchParams();  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const restaurantId = searchParams.get("restaurant");
+  const tableId = searchParams.get("table");
 
   useEffect(() => {
-    const orderId = searchParams.get("orderId");
-    if (!orderId) {
-      router.push("/customer/menu");
-      return;
-    }
+    const fetchOrder = async () => {
+      const orderId = searchParams.get("orderId");
+      if (!orderId || !restaurantId || !tableId) {
+        router.push("/customer/scan");
+        return;
+      }      try {
+        const orderData = await getOrderById(restaurantId, parseInt(orderId));
+        if (!orderData) {
+          router.push("/customer/scan");
+          return;
+        }
 
-    // Get initial order state
-    const orderData = getOrderById(parseInt(orderId));
-    if (orderData) {
-      setOrder(orderData);
-    }
-
-    // Subscribe to order updates
-    const unsubscribe = subscribeToOrderUpdates((updatedOrder) => {
-      if (updatedOrder.id === parseInt(orderId)) {
-        setOrder(updatedOrder);
+        setOrder(orderData);
+      } catch (error) {
+        console.error("Error fetching order:", error);
+      } finally {
+        setLoading(false);
       }
-    });
-
-    return () => {
-      unsubscribe();
     };
-  }, [router, searchParams]);
+
+    fetchOrder();
+  }, [router, searchParams, restaurantId, tableId]);
 
   const getStatusColor = (status: Order["status"]) => {
     switch (status) {
@@ -54,16 +55,31 @@ export default function ConfirmationPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-gray-600">Loading order details...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!order) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 py-8">
         <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Order not found</h2>
+          <CardContent className="p-6 text-center">
+            <h2 className="text-xl font-semibold mb-4">Order Not Found</h2>
             <p className="text-gray-600 mb-4">
-              We couldn't find your order. Please try again or contact staff for assistance.
+              We could not find your order. Please try again or contact staff for assistance.
             </p>
-            <Button variant="primary" onClick={() => router.push("/customer/menu")}>
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/customer/menu?restaurant=${restaurantId}&table=${tableId}`)}
+            >
               Return to Menu
             </Button>
           </CardContent>
@@ -83,7 +99,7 @@ export default function ConfirmationPage() {
               <Badge
                 className={`text-lg px-4 py-2 ${getStatusColor(order.status)}`}
               >
-                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
               </Badge>
             </div>
           </div>
@@ -122,14 +138,17 @@ export default function ConfirmationPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="mt-6 flex gap-4 justify-end">
             <Button
               variant="outline"
-              onClick={() => router.push(`/customer/track-order?orderId=${order.id}`)}
+              onClick={() => router.push(`/customer/track-order?orderId=${order.id}&restaurant=${restaurantId}&table=${tableId}`)}
             >
               Track Order Status
             </Button>
-            <Button variant="primary" onClick={() => router.push("/customer/menu")}>
+            <Button 
+              variant="primary" 
+              onClick={() => router.push(`/customer/menu?restaurant=${restaurantId}&table=${tableId}`)}
+            >
               Place Another Order
             </Button>
           </div>

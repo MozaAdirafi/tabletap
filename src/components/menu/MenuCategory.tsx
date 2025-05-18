@@ -19,3 +19,4 @@ export function MenuCategory({ title, description, children }: MenuCategoryProps
     </div>
   );
 }
+

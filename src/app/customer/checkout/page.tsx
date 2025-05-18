@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -15,42 +15,45 @@ interface CartItem {
   selectedOptions?: string[];
   selectedSize?: string;
   specialInstructions?: string;
+  description?: string;
+  categoryId?: string;
+  tags?: string[];
 }
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tipPercentage, setTipPercentage] = useState(15);
   const [specialRequests, setSpecialRequests] = useState("");
-  const [tableId, setTableId] = useState<string | null>(null);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
+  const restaurantId = searchParams.get("restaurant");
+  const tableId = searchParams.get("table");
 
   useEffect(() => {
-    // Get table ID from storage
-    const storedTableId = localStorage.getItem("tableId");
-    if (!storedTableId) {
-      router.push("/customer/scan");
-      return;
-    }
-    setTableId(storedTableId);
-
-    // Load cart
+    // Load cart first
     try {
       const savedCart = localStorage.getItem("cartItems");
       if (savedCart) {
         setCartItems(JSON.parse(savedCart));
-      } else {
-        const sessionCart = sessionStorage.getItem("cartItems");
-        if (sessionCart) {
-          setCartItems(JSON.parse(sessionCart));
-          localStorage.setItem("cartItems", sessionCart);
-        }
       }
     } catch (error) {
       console.error("Failed to load cart:", error);
     }
+
+    // Then validate context
+    if (!restaurantId || !tableId) {
+      alert(
+        "Restaurant or table information is missing. Please scan the QR code again."
+      );
+      router.push(`/customer/scan`);
+      return;
+    }
+
     setIsLoading(false);
-  }, [router]);
+  }, [restaurantId, tableId, router]);
 
   const subtotal = cartItems.reduce(
     (total, item) => total + item.price * item.quantity,
@@ -61,48 +64,68 @@ export default function CheckoutPage() {
   const total = subtotal + tax + tip;
 
   const handlePlaceOrder = async () => {
-    if (!tableId) {
-      alert("No table selected. Please scan a QR code first.");
-      router.push("/customer/scan");
+    if (!tableId || !restaurantId) {
+      alert(
+        "Restaurant or table information is missing. Please scan the QR code again."
+      );
+      router.push(`/customer/scan`);
       return;
     }
 
+    if (cartItems.length === 0) {
+      alert("Your cart is empty. Please add some items before checking out.");
+      router.push(`/customer/menu?restaurant=${restaurantId}&table=${tableId}`);
+      return;
+    }
+
+    setIsPlacingOrder(true);
     try {
       // Create order object
-      const orderItems = cartItems.map(item => ({
+      const orderItems = cartItems.map((item) => ({
         menuItem: {
-          id: item.id,
+          id: Number(item.id), // Ensure ID is a number
           name: item.name,
           price: item.price,
-          description: "", // These fields are required by MenuItem but not needed for order
+          description: item.description || "",
           available: true,
-          tags: [],
-          categoryId: "",
+          tags: item.tags || [],
+          categoryId: item.categoryId || "",
         } as MenuItem,
-        quantity: item.quantity
+        quantity: item.quantity,
       }));
-
-      const order: Order = {
-        id: 0, // Will be set by store
+      const orderData = {
         tableId,
         items: orderItems,
-        status: "pending",
+        status: "pending" as const,
         totalAmount: total,
+        specialRequests,
         createdAt: new Date(),
       };
 
-      // Add order to store
-      addOrder(order);
+      if (!restaurantId) {
+        throw new Error("Restaurant ID is missing");
+      }
+
+      // Add order to Firestore
+      const order = await addOrder(restaurantId, orderData);
+
+      if (!order || !order.id) {
+        throw new Error("Failed to create order - no order ID returned");
+      }
 
       // Clear cart
       localStorage.removeItem("cartItems");
-      sessionStorage.removeItem("cartItems");
 
-      // Redirect to confirmation page with order ID
-      router.push(`/customer/confirmation?orderId=${order.id}`);
+      // Redirect to confirmation page with order ID and preserve context
+      router.push(
+        `/customer/confirmation?orderId=${order.id}&restaurant=${restaurantId}&table=${tableId}`
+      );
     } catch (error) {
       console.error("Failed to place order:", error);
-      alert("Failed to place order. Please try again.");
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+      alert(`Failed to place order: ${errorMessage}. Please try again.`);
+      setIsPlacingOrder(false);
     }
   };
 
@@ -121,7 +144,11 @@ export default function CheckoutPage() {
             </p>
             <Button
               variant="primary"
-              onClick={() => router.push("/customer/menu")}
+              onClick={() =>
+                router.push(
+                  `/customer/menu?restaurant=${restaurantId}&table=${tableId}`
+                )
+              }
             >
               Return to Menu
             </Button>
@@ -137,7 +164,11 @@ export default function CheckoutPage() {
         <h1 className="text-2xl font-bold text-gray-900">Checkout</h1>
         <Button
           variant="outline"
-          onClick={() => router.push("/customer/menu")}
+          onClick={() =>
+            router.push(
+              `/customer/cart?restaurant=${restaurantId}&table=${tableId}`
+            )
+          }
           className="flex items-center gap-2"
         >
           <svg
@@ -152,7 +183,7 @@ export default function CheckoutPage() {
               clipRule="evenodd"
             />
           </svg>
-          Back to Menu
+          Back to Cart
         </Button>
       </div>
 
@@ -234,7 +265,7 @@ export default function CheckoutPage() {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tip</span>
                     <span>${tip.toFixed(2)}</span>
-                  </div>
+                  </div>{" "}
                   <div className="flex gap-2">
                     {[10, 15, 20].map((percentage) => (
                       <button
@@ -242,8 +273,8 @@ export default function CheckoutPage() {
                         onClick={() => setTipPercentage(percentage)}
                         className={`flex-1 py-2 px-3 rounded-md text-sm ${
                           tipPercentage === percentage
-                            ? "bg-primary-100 text-primary-800 border border-primary-200"
-                            : "bg-gray-100 text-gray-800 border border-gray-200"
+                            ? "bg-blue-100 text-blue-800 border border-blue-300 font-medium"
+                            : "bg-white text-gray-800 border border-gray-300 hover:bg-gray-50"
                         }`}
                       >
                         {percentage}%
@@ -264,8 +295,9 @@ export default function CheckoutPage() {
                 variant="primary"
                 className="w-full mt-6"
                 onClick={handlePlaceOrder}
+                disabled={isPlacingOrder}
               >
-                Place Order
+                {isPlacingOrder ? "Placing Order..." : "Place Order"}
               </Button>
             </CardContent>
           </Card>
