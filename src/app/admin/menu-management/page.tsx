@@ -52,6 +52,7 @@ export default function MenuManagementPage() {
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [addLoading, setAddLoading] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -118,34 +119,27 @@ export default function MenuManagementPage() {
     available: boolean;
     image?: File | string;
   }) => {
-    if (!user || !activeCategory) return;
-
+    if (!user || !activeCategory || addLoading) return;
+    setAddLoading(true);
     try {
-      // Convert price to number if it's a string
       const numericPrice =
         typeof data.price === "string" ? parseFloat(data.price) : data.price;
-
-      // Always use placeholder image instead of upload
-      const addedItem = await addMenuItemToDB(user.uid, {
+      // Always use the selected categoryId from the form
+      await addMenuItemToDB(user.uid, {
         name: data.name,
         description: data.description,
         price: numericPrice,
-        categoryId: activeCategory,
+        categoryId: data.categoryId, // always use the form value
         tags: data.tags,
         available: data.available,
-        // Remove imageSrc if not supported by addMenuItemToDB type
-        // imageSrc: PLACEHOLDER_IMAGE_URL,
       });
-
-      console.log("Added item with ID:", addedItem.id);
-
-      // Update UI with the item returned from Firestore (which has the ID)
-      setMenuItems((prevItems) => [...prevItems, addedItem]);
       setIsAddingItem(false);
       alert("Item added successfully!");
     } catch (error) {
       console.error("Error adding menu item:", error);
       alert("Failed to add menu item. Please try again.");
+    } finally {
+      setAddLoading(false);
     }
   };
 
@@ -525,16 +519,16 @@ export default function MenuManagementPage() {
                 isAddingItem
                   ? handleAddItem
                   : (data) => {
+                      console.log("handleAddItem called", data);
                       if (!editingItem || !editingItem.id) {
                         alert("Error: No menu item selected for editing.");
                         return;
                       }
-                      // Always pass a valid id and number price to handleUpdateItem
                       handleUpdateItem({
                         name: data.name,
                         description: data.description,
                         id: editingItem.id,
-                        categoryId: data.categoryId,
+                        categoryId: data.categoryId, // always use the form value
                         tags: data.tags,
                         available: data.available,
                         imageSrc: PLACEHOLDER_IMAGE_URL,
@@ -549,6 +543,7 @@ export default function MenuManagementPage() {
                 setIsAddingItem(false);
                 setEditingItem(null);
               }}
+              isLoading={addLoading}
             />
           </div>
         </div>

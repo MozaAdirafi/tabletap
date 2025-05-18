@@ -90,7 +90,24 @@ function MenuContent() {
       const savedCart = localStorage.getItem("cartItems");
       if (savedCart) {
         try {
-          const cartItems = JSON.parse(savedCart) as CartItem[];
+          let cartItems = JSON.parse(savedCart) as CartItem[];
+          // Filter out dummy/test/invalid items (e.g., name is 'fdas', 'bbb', or price is not a number)
+          cartItems = cartItems.filter(
+            (item) =>
+              item &&
+              typeof item.name === "string" &&
+              !["fdas", "bbb", "test", "dummy"].includes(item.name.toLowerCase()) &&
+              typeof item.price === "number" &&
+              !isNaN(item.price) &&
+              item.price > 0 &&
+              item.quantity > 0
+          );
+          // If we removed any items, update localStorage
+          if (cartItems.length === 0) {
+            localStorage.removeItem("cartItems");
+          } else {
+            localStorage.setItem("cartItems", JSON.stringify(cartItems));
+          }
           const total = cartItems.reduce(
             (sum, item) => sum + item.price * item.quantity,
             0
@@ -98,7 +115,11 @@ function MenuContent() {
           setCart({ items: cartItems, total });
         } catch (error) {
           console.error("Failed to parse cart:", error);
+          setCart({ items: [], total: 0 });
+          localStorage.removeItem("cartItems");
         }
+      } else {
+        setCart({ items: [], total: 0 });
       }
     };
 
@@ -151,6 +172,17 @@ function MenuContent() {
     );
     const newCart = { items: newCartItems, total: newTotal };
     setCart(newCart);
+    localStorage.setItem("cartItems", JSON.stringify(newCartItems));
+  };
+
+  // Remove item from cart
+  const handleRemoveFromCart = (itemId: string) => {
+    const newCartItems = cart.items.filter((item) => item.id !== itemId);
+    const newTotal = newCartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    setCart({ items: newCartItems, total: newTotal });
     localStorage.setItem("cartItems", JSON.stringify(newCartItems));
   };
 
@@ -326,13 +358,28 @@ function MenuContent() {
               </p>
               <p className="font-medium">${cart.total.toFixed(2)}</p>
             </div>{" "}
-            <Link
-              href={`/customer/cart?restaurant=${restaurantId}&table=${tableId}`}
-            >
-              <Button variant="primary" size="md">
-                View Cart
-              </Button>
-            </Link>
+            <div className="flex items-center gap-4">
+              {/* List cart items with remove button */}
+              {cart.items.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 border-r pr-4 last:border-r-0 last:pr-0">
+                  <span className="text-sm">{item.name} × {item.quantity}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRemoveFromCart(item.id)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Link
+                href={`/customer/cart?restaurant=${restaurantId}&table=${tableId}`}
+              >
+                <Button variant="primary" size="md">
+                  View Cart
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       )}
